@@ -152,52 +152,52 @@ class CD2_base(nn.Module):
     #     loss_t = (residual_t ** 2).sum() / (num_eval if num_eval > 0 else 1)
     #     loss_f = (residual_f ** 2).sum() / (num_eval if num_eval > 0 else 1)
     #     return loss_t + loss_f
-    def calc_loss(
-        self, observed_data, cond_mask, observed_mask, side_info, is_train, set_t = -1
-    ):
-        B, K, L = observed_data.shape
-        if is_train == 1:
-            t = (
-                torch.rand(B, device=self.device) * (self.time_sde.T - self.time_sde.eps) 
-                + self.time_sde.eps
-            )
-        else:
-            t = (torch.ones(B) * set_t).to(self.device)
-        '''
-        mask
-        '''
-        target_mask = (observed_mask - cond_mask).float()
-        '''
-        time domain diffusion
-        '''
-        z_t = torch.randn_like(observed_data) # noise
-        mean_t, std_t = self.time_sde.marginal_prob(observed_data, t)
-        std_t = std_t.unsqueeze(-1)
-        std_matrix_t = torch.diag_embed(std_t.squeeze(-1))
-        inv_std_matrix_t = torch.diag_embed(1.0 / std_t.squeeze(-1))
-        noise_t = torch.matmul(std_matrix_t, z_t)
-        x_t = mean_t + noise_t
-        # forward to score model (get score)
-        x_input = self.set_input_to_diffmodel(x_t, observed_data, cond_mask)
-        x_t_score, x_f_score = self.diffmodel(x_input, side_info, t)
-        target_score_t = -torch.matmul(inv_std_matrix_t, z_t)
-        mean_f, std_f = self.cd2.marginal_prob(observed_data, t)
-        std_f = std_f.unsqueeze(-1)
-        std_matrix_f = torch.diag_embed(std_f.squeeze(-1))
-        inv_std_matrix_f = torch.diag_embed(1.0 / std_f.squeeze(-1))
-        noise_f = torch.matmul(std_matrix_f, z_t)
-        x_f = mean_f + noise_f                             
-        target_score_f = -torch.matmul(inv_std_matrix_f, z_t)           
-        '''
-        loss
-        '''
-        residual_t = (x_t_score + target_score_t) * target_mask
-        residual_f = (x_f_score + target_score_f) * target_mask
+    # def calc_loss(
+    #     self, observed_data, cond_mask, observed_mask, side_info, is_train, set_t = -1
+    # ):
+    #     B, K, L = observed_data.shape
+    #     if is_train == 1:
+    #         t = (
+    #             torch.rand(B, device=self.device) * (self.time_sde.T - self.time_sde.eps) 
+    #             + self.time_sde.eps
+    #         )
+    #     else:
+    #         t = (torch.ones(B) * set_t).to(self.device)
+    #     '''
+    #     mask
+    #     '''
+    #     target_mask = (observed_mask - cond_mask).float()
+    #     '''
+    #     time domain diffusion
+    #     '''
+    #     z_t = torch.randn_like(observed_data) # noise
+    #     mean_t, std_t = self.time_sde.marginal_prob(observed_data, t)
+    #     std_t = std_t.unsqueeze(-1)
+    #     std_matrix_t = torch.diag_embed(std_t.squeeze(-1))
+    #     inv_std_matrix_t = torch.diag_embed(1.0 / std_t.squeeze(-1))
+    #     noise_t = torch.matmul(std_matrix_t, z_t)
+    #     x_t = mean_t + noise_t
+    #     # forward to score model (get score)
+    #     x_input = self.set_input_to_diffmodel(x_t, observed_data, cond_mask)
+    #     x_t_score, x_f_score = self.diffmodel(x_input, side_info, t)
+    #     target_score_t = -torch.matmul(inv_std_matrix_t, z_t)
+    #     mean_f, std_f = self.cd2.marginal_prob(observed_data, t)
+    #     std_f = std_f.unsqueeze(-1)
+    #     std_matrix_f = torch.diag_embed(std_f.squeeze(-1))
+    #     inv_std_matrix_f = torch.diag_embed(1.0 / std_f.squeeze(-1))
+    #     noise_f = torch.matmul(std_matrix_f, z_t)
+    #     x_f = mean_f + noise_f                             
+    #     target_score_f = -torch.matmul(inv_std_matrix_f, z_t)           
+    #     '''
+    #     loss
+    #     '''
+    #     residual_t = (x_t_score + target_score_t) * target_mask
+    #     residual_f = (x_f_score + target_score_f) * target_mask
 
-        num_eval = target_mask.sum()
-        loss_t = (residual_t ** 2).sum()/(num_eval if num_eval > 0 else 1)
-        loss_f = (residual_f ** 2).sum()/(num_eval if num_eval > 0 else 1)  
-        return loss_t + loss_f
+    #     num_eval = target_mask.sum()
+    #     loss_t = (residual_t ** 2).sum()/(num_eval if num_eval > 0 else 1)
+    #     loss_f = (residual_f ** 2).sum()/(num_eval if num_eval > 0 else 1)  
+    #     return loss_t + loss_f
 
     def calc_loss(
         self, observed_data, cond_mask, observed_mask, side_info, is_train, set_t = -1
@@ -238,7 +238,18 @@ class CD2_base(nn.Module):
         '''
         if we want to supervise the time domain at the same time
         '''
-        return loss
+        _, std_t = self.time_sde.marginal_prob(observed_data,t)
+        var_t = std_t ** 2
+        inverse_std_t_matrix = torch.diag_embed(1/std_t)
+        target_noise_t = torch.matmul(inverse_std_t_matrix, z_t) 
+        weighting_factor_t = 1.0/torch.sum(1.0/var_t, dim=1)
+        assert weighting_factor_t.shape == (B,)
+        losses_t = weighting_factor_t.view(-1,1,1)* torch.square(
+            score_t + target_noise_t
+        )
+        residual_t = losses_t * target_mask
+        loss_t = (residual_t ** 2).sum()/(num_eval if num_eval > 0 else 1)
+        return loss + loss_t
 
     def calc_loss_valid(
         self, observed_data, cond_mask, observed_mask, side_info, is_train

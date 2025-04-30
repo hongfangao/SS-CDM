@@ -52,7 +52,7 @@ train_loader, valid_loader, test_loader = get_dataloader(
     missing_ratio=config["model"]["test_missing_ratio"],
 )
 
-cd2 = CD2SDE()
+cd2 = CD2SDE(beta_min=config["diffusion"]["beta_start"],beta_max=config["diffusion"]["beta_end"])
 model = CD2_Physio(config, args.device, cd2).to(args.device)
 
 if args.modelfolder == "":
