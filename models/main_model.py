@@ -157,10 +157,12 @@ class CD2_base(nn.Module):
     ):
         B, K, L = observed_data.shape
         if is_train == 1:
-            t = torch.rand(B) * (self.time_sde.T - self.time_sde.eps) + self.time_sde.eps
-            t = t.to(self.device)
+            t = (
+                torch.rand(B, device=self.device) * (self.time_sde.T - self.time_sde.eps) 
+                + self.time_sde.eps
+            )
         else:
-            t = (torch.ones(B) * set_t).long().to(self.device)
+            t = (torch.ones(B) * set_t).to(self.device)
         '''
         mask
         '''
@@ -197,11 +199,53 @@ class CD2_base(nn.Module):
         loss_f = (residual_f ** 2).sum()/(num_eval if num_eval > 0 else 1)  
         return loss_t + loss_f
 
+    def calc_loss(
+        self, observed_data, cond_mask, observed_mask, side_info, is_train, set_t = -1
+    ):
+        B, K, L = observed_data.shape
+        if is_train:
+            t = (
+                torch.rand(B, device = self.device) * (self.time_sde.T - self.time_sde.eps)
+                + self.time_sde.eps
+            )
+        else:
+            t = (torch.ones(B) * set_t).to(self.device)
+        '''
+        mask
+        '''
+        target_mask = (observed_mask - cond_mask).float()
+        '''
+        noise
+        '''
+        z_t = torch.randn_like(observed_data)
+        mean, std = self.cd2.marginal_prob(observed_data, t)
+        var = std**2
+        std_matrix = torch.diag_embed(std)
+        inverse_std_matrix = torch.diag_embed(1/std)
+        noise = torch.matmul(std_matrix, z_t)
+        target_noise = torch.matmul(inverse_std_matrix, z_t)
+        x_noisy = mean + noise
+        x_input = self.set_input_to_diffmodel(x_noisy, observed_data, cond_mask)
+        score_t, score_f = self.diffmodel(x_input, side_info, t)
+        weighting_factor = 1.0/torch.sum(1.0/var, dim=1)
+        assert weighting_factor.shape == (B,)
+        losses = weighting_factor.view(-1,1,1)* torch.square(
+            score_f + target_noise
+        )
+        residual = losses * target_mask
+        num_eval = target_mask.sum()
+        loss = (residual ** 2).sum()/(num_eval if num_eval > 0 else 1)
+        '''
+        if we want to supervise the time domain at the same time
+        '''
+        return loss
+
     def calc_loss_valid(
         self, observed_data, cond_mask, observed_mask, side_info, is_train
     ):
         loss_sum = 0
-        for t in range(self.num_steps):
+        self.cd2.set_timesteps(self.num_steps)
+        for t in self.cd2.timesteps:
             loss = self.calc_loss(
                 observed_data, cond_mask, observed_mask, side_info, is_train, set_t=t
             )
