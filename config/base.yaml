@@ -1,14 +1,17 @@
-# type: args
+
+#type: args
 
 train:
-  epochs: 1
-  batch_size: 16
+  epochs: 5
+  batch_size: 16 
   lr: 1.0e-3
   itr_per_epoch: 1.0e+8
 
+
 diffusion:
-  layers: 4
-  channels: 64
+  layers_t: 4
+  layers_f: 4
+  channels: 64 
   nheads_time: 8
   nheads_freq: 8
   time_diffusion_embedding_dim: 128

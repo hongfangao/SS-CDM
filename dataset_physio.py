@@ -63,7 +63,7 @@ def parse_id(id_, missing_ratio=0.1):
 def get_idlist():
     patient_id = []
     for filename in os.listdir("./data/physio/set-a"):
-        match = re.search(r"\d{6}", filename)
+        match = re.search("\d{6}", filename)
         if match:
             patient_id.append(match.group())
     patient_id = np.sort(patient_id)
