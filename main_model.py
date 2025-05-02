@@ -139,7 +139,8 @@ class CSDI_base(nn.Module):
         noisy_data_t = (current_alpha ** 0.5) * observed_data + (1.0 - current_alpha) ** 0.5 * noise
         noisy_data_f = (current_alpha ** 0.5) * dft(noisy_data_t) + (1.0 - current_alpha) ** 0.5 * G * noise_f
 
-        total_input = self.set_input_to_diffmodel(noisy_data_t, observed_data, cond_mask)
+        noisy_input = idft(noisy_data_f)
+        total_input = self.set_input_to_diffmodel(noisy_input, observed_data, cond_mask)
 
         predicted_t, predicted_f = self.diffmodel(total_input, side_info, t)  # (B,K,L)
 
@@ -149,7 +150,7 @@ class CSDI_base(nn.Module):
         loss_t = (residual_t ** 2).sum() / (num_eval if num_eval > 0 else 1)
         residual_f = (G * noise_f - predicted_f) * target_mask
         loss_f = (residual_f ** 2).sum() / (num_eval if num_eval > 0 else 1)
-        return loss_t + loss_f
+        return loss_f + loss_t
 
     def set_input_to_diffmodel(self, noisy_data, observed_data, cond_mask):
         if self.is_unconditional == True:
@@ -169,7 +170,7 @@ class CSDI_base(nn.Module):
         for i in range(n_samples):
             # sample from freq prior
             x_f = torch.randn(B, K, L, device=self.device) * G
-
+            # x_t = torch.randn_like(observed_data)
             # unconditional
             if self.is_unconditional:
                 noisy_obs = observed_data.clone()
@@ -182,8 +183,8 @@ class CSDI_base(nn.Module):
             for t in reversed(range(self.num_steps)):
                 # to time domain
                 x_t = idft(x_f)
-
-                # input
+                # x_t = torch.randn_like(observed_data)
+                # # input
                 if self.is_unconditional:
                     cond = noisy_cond_history[t].unsqueeze(1)  # (B,1,K,L)
                 else:
@@ -196,8 +197,10 @@ class CSDI_base(nn.Module):
 
                 # freq step
                 coeff1_f = 1 / self.alpha_hat[t]**0.5
-                coeff2_f = (1 - self.alpha_hat[t]) / (1-self.alpha[t])**0.5
-                x_f = coeff1_f * (x_f - coeff2_f * pred_f)
+                # coeff2_f = (1 - self.alpha_hat[t]) / (1-self.alpha[t])**0.5
+                coeff2_f = self.beta[t] / (1 - self.alpha[t]) ** 0.5
+
+                x_f = coeff1_f * (x_f - coeff2_f * (pred_f/G))
                 if t > 0:
                     sigma_f = (
                         (1 - self.alpha[t-1]) / (1 - self.alpha[t]) * self.beta[t]
@@ -207,7 +210,8 @@ class CSDI_base(nn.Module):
                 # time step
                 x_t = idft(x_f)
                 coeff1_t = 1 / self.alpha_hat[t] **0.5
-                coeff2_t = (1 - self.alpha_hat[t]) / (1-self.alpha[t])**0.5
+                # coeff2_t = (1 - self.alpha_hat[t]) / (1-self.alpha[t])**0.5
+                coeff2_t = self.beta[t] / (1 - self.alpha[t]) ** 0.5
                 x_t = coeff1_t * (x_t - coeff2_t * pred_t)
                 if t > 0:
                     sigma_t = (
