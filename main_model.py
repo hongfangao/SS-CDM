@@ -4,7 +4,7 @@ import torch.nn as nn
 from diff_models import diff_CSDI
 import math
 from fourier import dft, idft
-
+import logging
 
 class CSDI_base(nn.Module):
     def __init__(self, target_dim, config, device):
@@ -162,6 +162,71 @@ class CSDI_base(nn.Module):
 
         return total_input
 
+    # def impute(self, observed_data, cond_mask, side_info, n_samples):
+    #     B, K, L = observed_data.shape
+    #     G = self.set_noise_scaling(L).view(1,L,1)  # shape: (1,1,L)
+    #     G_matrix = torch.diag(G.view(G.shape[-1]))
+    #     scaling_matrix = G_matrix.view(-1, G_matrix.shape[0], G_matrix.shape[1])
+    #     imputed_samples = torch.zeros(B, n_samples, K, L).to(self.device)
+
+    #     for i in range(n_samples):
+    #         # sample from freq prior
+    #         # x_f = torch.matmul(scaling_matrix, torch.randn(B, L, K, device=self.device)).reshape(B, K, L)
+    #         x_f = G * torch.randn
+    #         # x_t = torch.randn_like(observed_data)
+    #         # unconditional
+    #         if self.is_unconditional:
+    #             noisy_obs = observed_data.clone()
+    #             noisy_cond_history = []
+    #             for t in range(self.num_steps):
+    #                 noise = torch.randn_like(noisy_obs)
+    #                 noisy_obs = (self.alpha_hat[t] ** 0.5) * noisy_obs + self.beta[t] ** 0.5 * noise
+    #                 noisy_cond_history.append(noisy_obs)
+
+    #         for t in range(self.num_steps -1, -1, -1):
+    #             # to time domain
+    #             x_t = idft(x_f)
+    #             # x_t = torch.randn_like(observed_data)
+    #             # # input
+    #             if self.is_unconditional:
+    #                 cond = noisy_cond_history[t].unsqueeze(1)  # (B,1,K,L)
+    #             else:
+    #                 cond = (cond_mask * observed_data).unsqueeze(1)
+    #             noisy_target = ((1 - cond_mask) * x_t).unsqueeze(1)
+    #             model_input = torch.cat([cond, noisy_target], dim=1)  # (B,2,K,L)
+
+    #             # pred
+    #             pred_t, pred_f = self.diffmodel(model_input, side_info, torch.tensor([t]).to(self.device))  # (B,K,L), (B,K,L)
+
+    #             # freq step
+    #             coeff1_f = 1 / self.alpha_hat[t]**0.5
+    #             # coeff2_f = (1 - self.alpha_hat[t]) / (1-self.alpha[t])**0.5
+    #             coeff2_f = self.beta[t] / (1 - self.alpha[t]) ** 0.5
+
+    #             x_f = coeff1_f * (x_f - coeff2_f * (G*pred_f))
+    #             if t > 0:
+    #                 sigma_f = (
+    #                     (1 - self.alpha[t-1]) / (1 - self.alpha[t]) * self.beta[t]
+    #                 ) ** 0.5
+    #                 x_f += sigma_f * G * torch.randn_like(x_f)  # 加 G，保持协方差一致
+    #             # time step
+    #             x_t = idft(x_f)
+    #             coeff1_t = 1 / self.alpha_hat[t] **0.5
+    #             # coeff2_t = (1 - self.alpha_hat[t]) / (1-self.alpha[t])**0.5
+    #             coeff2_t = self.beta[t] / (1 - self.alpha[t]) ** 0.5
+    #             x_t = coeff1_t * (x_t - coeff2_t * pred_t)
+    #             if t > 0:
+    #                 sigma_t = (
+    #                     (1 - self.alpha[t-1]) / (1 - self.alpha[t]) * self.beta[t]
+    #                 ) ** 0.5
+    #                 x_t += sigma_t * torch.randn_like(x_t)
+
+    #             # freq update
+    #             x_f = dft(x_t)
+    #         imputed_samples[:, i] = x_t.detach()
+            
+    #     return imputed_samples
+
     def impute(self, observed_data, cond_mask, side_info, n_samples):
         B, K, L = observed_data.shape
         G = self.set_noise_scaling(L)  # shape: (1,1,L)
@@ -169,18 +234,18 @@ class CSDI_base(nn.Module):
 
         for i in range(n_samples):
             # sample from freq prior
-            x_f = torch.randn(B, K, L, device=self.device) * G
+            x_f = G * torch.randn(B, K, L, device=self.device)
             # x_t = torch.randn_like(observed_data)
             # unconditional
-            if self.is_unconditional:
-                noisy_obs = observed_data.clone()
+            if self.is_unconditional == True:
+                noisy_obs = observed_data
                 noisy_cond_history = []
                 for t in range(self.num_steps):
                     noise = torch.randn_like(noisy_obs)
                     noisy_obs = (self.alpha_hat[t] ** 0.5) * noisy_obs + self.beta[t] ** 0.5 * noise
-                    noisy_cond_history.append(noisy_obs.clone())
+                    noisy_cond_history.append(noisy_obs)
 
-            for t in reversed(range(self.num_steps)):
+            for t in range(self.num_steps - 1, -1, -1):
                 # to time domain
                 x_t = idft(x_f)
                 # x_t = torch.randn_like(observed_data)
@@ -193,31 +258,31 @@ class CSDI_base(nn.Module):
                 model_input = torch.cat([cond, noisy_target], dim=1)  # (B,2,K,L)
 
                 # pred
-                pred_t, pred_f = self.diffmodel(model_input, side_info, t)  # (B,K,L), (B,K,L)
+                pred_t, pred_f = self.diffmodel(model_input, side_info, torch.tensor([t]).to(self.device))  # (B,K,L), (B,K,L)
 
                 # freq step
-                coeff1_f = 1 / self.alpha_hat[t]**0.5
+                coeff1_t = 1 / (self.alpha_hat[t]**0.5)
                 # coeff2_f = (1 - self.alpha_hat[t]) / (1-self.alpha[t])**0.5
-                coeff2_f = self.beta[t] / (1 - self.alpha[t]) ** 0.5
+                coeff2_t = (1-self.alpha_hat[t])/ ((1 - self.alpha[t]) ** 0.5)
 
-                x_f = coeff1_f * (x_f - coeff2_f * (pred_f/G))
-                if t > 0:
-                    sigma_f = (
-                        (1 - self.alpha[t-1]) / (1 - self.alpha[t]) * self.beta[t]
-                    ) ** 0.5
-                    x_f += sigma_f * torch.randn_like(x_f) * G  # 加 G，保持协方差一致
-
-                # time step
-                x_t = idft(x_f)
-                coeff1_t = 1 / self.alpha_hat[t] **0.5
-                # coeff2_t = (1 - self.alpha_hat[t]) / (1-self.alpha[t])**0.5
-                coeff2_t = self.beta[t] / (1 - self.alpha[t]) ** 0.5
-                x_t = coeff1_t * (x_t - coeff2_t * pred_t)
+                x_t = coeff1_t * (x_t - coeff2_t * (pred_t))
                 if t > 0:
                     sigma_t = (
                         (1 - self.alpha[t-1]) / (1 - self.alpha[t]) * self.beta[t]
                     ) ** 0.5
-                    x_t += sigma_t * torch.randn_like(x_t)
+                    x_t += sigma_t * torch.randn_like(x_t)  # 加 G，保持协方差一致
+                
+                # time step
+                x_f = dft(x_t)
+                coeff1_f = 1 / (self.alpha_hat[t] **0.5)
+                # coeff2_t = (1 - self.alpha_hat[t]) / (1-self.alpha[t])**0.5
+                coeff2_f = (1-self.alpha_hat[t]) / ((1 - self.alpha[t]) ** 0.5)
+                x_f = coeff1_f * (x_f - coeff2_f * (G *pred_f))
+                if t > 0:
+                    sigma_t = (
+                        (1 - self.alpha[t-1]) / (1 - self.alpha[t]) * self.beta[t]
+                    ) ** 0.5
+                    x_f += sigma_t * G * torch.randn_like(x_f)
 
                 # freq update
                 x_f = dft(x_t)

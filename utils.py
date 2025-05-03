@@ -3,7 +3,7 @@ import torch
 from torch.optim import Adam
 from tqdm import tqdm
 import pickle
-
+import logging
 
 def train(
     model,
@@ -63,7 +63,7 @@ def train(
                         )
             if best_valid_loss > avg_loss_valid:
                 best_valid_loss = avg_loss_valid
-                print(
+                logging.info(
                     "\n best loss is updated to ",
                     avg_loss_valid / batch_no,
                     "at",
@@ -207,7 +207,7 @@ def evaluate(model, test_loader, nsample=100, scaler=1, mean_scaler=0, foldernam
                     ],
                     f,
                 )
-                print("RMSE:", np.sqrt(mse_total / evalpoints_total))
-                print("MAE:", mae_total / evalpoints_total)
-                print("CRPS:", CRPS)
-                print("CRPS_sum:", CRPS_sum)
+                logging.info("RMSE:%f", np.sqrt(mse_total / evalpoints_total))
+                logging.info("MAE:%f", mae_total / evalpoints_total)
+                logging.info("CRPS:%f", CRPS)
+                logging.info("CRPS_sum:%f", CRPS_sum)

@@ -9,8 +9,17 @@ from main_model import CSDI_Physio
 from dataset_physio import get_dataloader
 from utils import train, evaluate
 
+import logging
+
+current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+logging.basicConfig(
+    level=logging.INFO,
+    filename='train_'+current_time+'.log',
+    filemode='w',
+)
+
 import sys 
-sys.argv += "--testmissingratio 0.1 --nsample 1".split()
+sys.argv += "--testmissingratio 0.1 --nsample 100".split()
 
 parser = argparse.ArgumentParser(description="cd2")
 parser.add_argument("--config", type=str, default="base.yaml")
@@ -25,7 +34,7 @@ parser.add_argument("--modelfolder", type=str, default="")
 parser.add_argument("--nsample", type=int, default=100)
 
 args = parser.parse_args()
-print(args)
+logging.info(args)
 
 path = "config/" + args.config
 with open(path, "r") as f:
@@ -34,11 +43,11 @@ with open(path, "r") as f:
 config["model"]["is_unconditional"] = args.unconditional
 config["model"]["test_missing_ratio"] = args.testmissingratio
 
-print(json.dumps(config, indent=4))
+logging.info(json.dumps(config, indent=4))
 
 current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 foldername = "./save/physio_fold" + str(args.nfold) + "_" + current_time + "/"
-print('model folder:', foldername)
+logging.info('model folder:%s', foldername)
 os.makedirs(foldername, exist_ok=True)
 with open(foldername + "config.json", "w") as f:
     json.dump(config, f, indent=4)
