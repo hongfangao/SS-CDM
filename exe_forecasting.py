@@ -5,11 +5,11 @@ import json
 import yaml
 import os
 
-from main_model import CSDI_Forecasting
+from main_model import CD2_Forecasting
 from dataset_forecasting import get_dataloader
 from utils import train, evaluate
 
-parser = argparse.ArgumentParser(description="CSDI")
+parser = argparse.ArgumentParser(description="CD2")
 parser.add_argument("--config", type=str, default="base_forecasting.yaml")
 parser.add_argument("--datatype", type=str, default="electricity")
 parser.add_argument('--device', default='cuda:0', help='Device for Attack')
@@ -45,7 +45,7 @@ train_loader, valid_loader, test_loader, scaler, mean_scaler = get_dataloader(
     batch_size=config["train"]["batch_size"],
 )
 
-model = CSDI_Forecasting(config, args.device, target_dim).to(args.device)
+model = CD2_Forecasting(config, args.device, target_dim).to(args.device)
 
 if args.modelfolder == "":
     train(

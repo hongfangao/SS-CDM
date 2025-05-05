@@ -1,12 +1,12 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from diff_models import diff_CSDI
+from diff_models import diff_CD2
 import math
 from fourier import dft, idft
 import logging
 
-class CSDI_base(nn.Module):
+class CD2_base(nn.Module):
     def __init__(self, target_dim, config, device):
         super().__init__()
         self.device = device
@@ -28,7 +28,7 @@ class CSDI_base(nn.Module):
         config_diff["side_dim"] = self.emb_total_dim
 
         input_dim = 1 if self.is_unconditional == True else 2
-        self.diffmodel = diff_CSDI(config_diff, input_dim)
+        self.diffmodel = diff_CD2(config_diff, input_dim)
 
         # parameters for diffusion models
         self.num_steps = config_diff["num_steps"]
@@ -138,18 +138,21 @@ class CSDI_base(nn.Module):
         
         noisy_data_t = (current_alpha ** 0.5) * observed_data + (1.0 - current_alpha) ** 0.5 * noise
         noisy_data_f = (current_alpha ** 0.5) * dft(noisy_data_t) + (1.0 - current_alpha) ** 0.5 * G * noise_f
-
+ 
         noisy_input = idft(noisy_data_f)
         total_input = self.set_input_to_diffmodel(noisy_input, observed_data, cond_mask)
 
         predicted_t, predicted_f = self.diffmodel(total_input, side_info, t)  # (B,K,L)
-
+        
+        extra = idft(G* noise_f)
+        true_eps_t = (self.alpha_torch[t]).sqrt() * noise + (1-self.alpha_torch[t]).sqrt() * extra
         target_mask = observed_mask - cond_mask
-        residual_t = (noise - predicted_t) * target_mask
+        residual_t = (true_eps_t - predicted_t) * target_mask
         num_eval = target_mask.sum()
         loss_t = (residual_t ** 2).sum() / (num_eval if num_eval > 0 else 1)
         residual_f = (G * noise_f - predicted_f) * target_mask
         loss_f = (residual_f ** 2).sum() / (num_eval if num_eval > 0 else 1)
+        logging.info(f"loss_f:{loss_f} loss_t:{loss_t} ratio:{loss_f/loss_t}")
         return loss_f + loss_t
 
     def set_input_to_diffmodel(self, noisy_data, observed_data, cond_mask):
@@ -161,71 +164,6 @@ class CSDI_base(nn.Module):
             total_input = torch.cat([cond_obs, noisy_target], dim=1)  # (B,2,K,L)
 
         return total_input
-
-    # def impute(self, observed_data, cond_mask, side_info, n_samples):
-    #     B, K, L = observed_data.shape
-    #     G = self.set_noise_scaling(L).view(1,L,1)  # shape: (1,1,L)
-    #     G_matrix = torch.diag(G.view(G.shape[-1]))
-    #     scaling_matrix = G_matrix.view(-1, G_matrix.shape[0], G_matrix.shape[1])
-    #     imputed_samples = torch.zeros(B, n_samples, K, L).to(self.device)
-
-    #     for i in range(n_samples):
-    #         # sample from freq prior
-    #         # x_f = torch.matmul(scaling_matrix, torch.randn(B, L, K, device=self.device)).reshape(B, K, L)
-    #         x_f = G * torch.randn
-    #         # x_t = torch.randn_like(observed_data)
-    #         # unconditional
-    #         if self.is_unconditional:
-    #             noisy_obs = observed_data.clone()
-    #             noisy_cond_history = []
-    #             for t in range(self.num_steps):
-    #                 noise = torch.randn_like(noisy_obs)
-    #                 noisy_obs = (self.alpha_hat[t] ** 0.5) * noisy_obs + self.beta[t] ** 0.5 * noise
-    #                 noisy_cond_history.append(noisy_obs)
-
-    #         for t in range(self.num_steps -1, -1, -1):
-    #             # to time domain
-    #             x_t = idft(x_f)
-    #             # x_t = torch.randn_like(observed_data)
-    #             # # input
-    #             if self.is_unconditional:
-    #                 cond = noisy_cond_history[t].unsqueeze(1)  # (B,1,K,L)
-    #             else:
-    #                 cond = (cond_mask * observed_data).unsqueeze(1)
-    #             noisy_target = ((1 - cond_mask) * x_t).unsqueeze(1)
-    #             model_input = torch.cat([cond, noisy_target], dim=1)  # (B,2,K,L)
-
-    #             # pred
-    #             pred_t, pred_f = self.diffmodel(model_input, side_info, torch.tensor([t]).to(self.device))  # (B,K,L), (B,K,L)
-
-    #             # freq step
-    #             coeff1_f = 1 / self.alpha_hat[t]**0.5
-    #             # coeff2_f = (1 - self.alpha_hat[t]) / (1-self.alpha[t])**0.5
-    #             coeff2_f = self.beta[t] / (1 - self.alpha[t]) ** 0.5
-
-    #             x_f = coeff1_f * (x_f - coeff2_f * (G*pred_f))
-    #             if t > 0:
-    #                 sigma_f = (
-    #                     (1 - self.alpha[t-1]) / (1 - self.alpha[t]) * self.beta[t]
-    #                 ) ** 0.5
-    #                 x_f += sigma_f * G * torch.randn_like(x_f)  # 加 G，保持协方差一致
-    #             # time step
-    #             x_t = idft(x_f)
-    #             coeff1_t = 1 / self.alpha_hat[t] **0.5
-    #             # coeff2_t = (1 - self.alpha_hat[t]) / (1-self.alpha[t])**0.5
-    #             coeff2_t = self.beta[t] / (1 - self.alpha[t]) ** 0.5
-    #             x_t = coeff1_t * (x_t - coeff2_t * pred_t)
-    #             if t > 0:
-    #                 sigma_t = (
-    #                     (1 - self.alpha[t-1]) / (1 - self.alpha[t]) * self.beta[t]
-    #                 ) ** 0.5
-    #                 x_t += sigma_t * torch.randn_like(x_t)
-
-    #             # freq update
-    #             x_f = dft(x_t)
-    #         imputed_samples[:, i] = x_t.detach()
-            
-    #     return imputed_samples
 
     def impute(self, observed_data, cond_mask, side_info, n_samples):
         B, K, L = observed_data.shape
@@ -277,7 +215,7 @@ class CSDI_base(nn.Module):
                 coeff1_f = 1 / (self.alpha_hat[t] **0.5)
                 # coeff2_t = (1 - self.alpha_hat[t]) / (1-self.alpha[t])**0.5
                 coeff2_f = (1-self.alpha_hat[t]) / ((1 - self.alpha[t]) ** 0.5)
-                x_f = coeff1_f * (x_f - coeff2_f * (G *pred_f))
+                x_f = coeff1_f * (x_f - coeff2_f * (pred_f))
                 if t > 0:
                     sigma_t = (
                         (1 - self.alpha[t-1]) / (1 - self.alpha[t]) * self.beta[t]
@@ -338,9 +276,9 @@ class CSDI_base(nn.Module):
         return samples, observed_data, target_mask, observed_mask, observed_tp
 
 
-class CSDI_PM25(CSDI_base):
+class CD2_PM25(CD2_base):
     def __init__(self, config, device, target_dim=36):
-        super(CSDI_PM25, self).__init__(target_dim, config, device)
+        super(CD2_PM25, self).__init__(target_dim, config, device)
 
     def process_data(self, batch):
         observed_data = batch["observed_data"].to(self.device).float()
@@ -365,9 +303,9 @@ class CSDI_PM25(CSDI_base):
         )
 
 
-class CSDI_Physio(CSDI_base):
+class CD2_Physio(CD2_base):
     def __init__(self, config, device, target_dim=35):
-        super(CSDI_Physio, self).__init__(target_dim, config, device)
+        super(CD2_Physio, self).__init__(target_dim, config, device)
 
     def process_data(self, batch):
         observed_data = batch["observed_data"].to(self.device).float()
@@ -393,9 +331,9 @@ class CSDI_Physio(CSDI_base):
 
 
 
-class CSDI_Forecasting(CSDI_base):
+class CD2_Forecasting(CD2_base):
     def __init__(self, config, device, target_dim):
-        super(CSDI_Forecasting, self).__init__(target_dim, config, device)
+        super(CD2_Forecasting, self).__init__(target_dim, config, device)
         self.target_dim_base = target_dim
         self.num_sample_features = config["model"]["num_sample_features"]
 

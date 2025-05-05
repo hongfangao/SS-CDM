@@ -6,10 +6,10 @@ import yaml
 import os
 
 from dataset_pm25 import get_dataloader
-from main_model import CSDI_PM25
+from main_model import CD2_PM25
 from utils import train, evaluate
 
-parser = argparse.ArgumentParser(description="CSDI")
+parser = argparse.ArgumentParser(description="CD2")
 parser.add_argument("--config", type=str, default="base.yaml")
 parser.add_argument('--device', default='cuda:0', help='Device for Attack')
 parser.add_argument("--modelfolder", type=str, default="")
@@ -47,7 +47,7 @@ with open(foldername + "config.json", "w") as f:
 train_loader, valid_loader, test_loader, scaler, mean_scaler = get_dataloader(
     config["train"]["batch_size"], device=args.device, validindex=args.validationindex
 )
-model = CSDI_PM25(config, args.device).to(args.device)
+model = CD2_PM25(config, args.device).to(args.device)
 
 if args.modelfolder == "":
     train(

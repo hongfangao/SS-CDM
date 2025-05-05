@@ -34,13 +34,15 @@ def dft(x: torch.Tensor) -> torch.Tensor:
         ), f"Got an even {max_len=}, which should be real at the Nyquist frequency, yet got imaginary part {dft_im[:, -1, :]}."
         dft_im = dft_im[:, :-1]
 
+    # energy balance
+    dft_im = dft_im / math.sqrt(2)
     # Concatenate real and imaginary parts
     x_tilde = torch.cat((dft_re, dft_im), dim=1)
     assert (
         x_tilde.size() == x.size()
     ), f"The DFT and the input should have the same size. Got {x_tilde.size()} and {x.size()} instead."
 
-    return x_tilde.detach()
+    return x_tilde
 
 def idft(x: torch.Tensor) -> torch.Tensor:
     """Compute the inverse DFT of the input DFT that only contains non-redundant components.
@@ -70,7 +72,9 @@ def idft(x: torch.Tensor) -> torch.Tensor:
     assert (
         x_im.size() == x_re.size()
     ), f"The real and imaginary parts should have the same shape, got {x_re.size()} and {x_im.size()} instead."
-
+    
+    #energy balance
+    x_im = x_im * math.sqrt(2)
     x_freq = torch.complex(x_re, x_im)
 
     # Apply IFFT
@@ -81,7 +85,7 @@ def idft(x: torch.Tensor) -> torch.Tensor:
         x_time.size() == x.size()
     ), f"The inverse DFT and the input should have the same size. Got {x_time.size()} and {x.size()} instead."
 
-    return x_time.detach()
+    return x_time
 
 def spectral_density(x: torch.Tensor, apply_dft: bool = True) -> torch.Tensor:
     """Compute the spectral density of the input time series.

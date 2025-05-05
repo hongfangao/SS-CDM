@@ -42,6 +42,10 @@ def train(
                     },
                     refresh=False,
                 )
+                if batch_no % 25 == 0:
+                    epoch_info = f"Epoch:{epoch_no}, batch:{batch_no}, avg_loss:{avg_loss/batch_no}"
+                    logging.info(epoch_info)
+
                 if batch_no >= config["itr_per_epoch"]:
                     break
 
@@ -61,9 +65,12 @@ def train(
                             },
                             refresh=False,
                         )
+                        if batch_no % 25 == 0:
+                            epoch_info = f"Epoch:{epoch_no}, batch:{batch_no}, avg_loss:{avg_loss/batch_no}"
+                            logging.info(epoch_info)
             if best_valid_loss > avg_loss_valid:
                 best_valid_loss = avg_loss_valid
-                logging.info(
+                print(
                     "\n best loss is updated to ",
                     avg_loss_valid / batch_no,
                     "at",
@@ -166,7 +173,9 @@ def evaluate(model, test_loader, nsample=100, scaler=1, mean_scaler=0, foldernam
                     },
                     refresh=True,
                 )
-
+                if batch_no % 10 == 0:
+                    epoch_info = f"\nrmse_total:{np.sqrt(mse_total / evalpoints_total)}\nmae_total:{mae_total / evalpoints_total}\nbatch_no:{batch_no}"
+                    logging.info(epoch_info)
             with open(
                 foldername + "/generated_outputs_nsample" + str(nsample) + ".pk", "wb"
             ) as f:

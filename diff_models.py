@@ -135,7 +135,7 @@ class HighPassDiffusionEmbedding(nn.Module):
         embedding = torch.cat([sin_part, cos_part], dim=1)  # (T, d_model)
         return embedding
 
-class diff_CSDI(nn.Module):
+class diff_CD2(nn.Module):
     def __init__(self, config, inputdim=2):
         super().__init__()
         self.channels = config["channels"]
