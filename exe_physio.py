@@ -19,7 +19,7 @@ logging.basicConfig(
 )
 
 import sys 
-sys.argv += "--testmissingratio 0.1 --nsample 1".split()
+sys.argv += "--testmissingratio 0.1 --nsample 100".split()
 
 parser = argparse.ArgumentParser(description="cd2")
 parser.add_argument("--config", type=str, default="base.yaml")

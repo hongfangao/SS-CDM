@@ -150,7 +150,11 @@ class CD2_base(nn.Module):
         residual_t = (true_eps_t - predicted_t) * target_mask
         num_eval = target_mask.sum()
         loss_t = (residual_t ** 2).sum() / (num_eval if num_eval > 0 else 1)
-        residual_f = (G * noise_f - predicted_f) * target_mask
+        n_real = (L+1)//2 + 1
+        noise_f_re = noise_f[:,:,:n_real]
+        noise_f_im = noise_f[:,:,n_real:]/math.sqrt(2)
+        noise_f_aligned = torch.cat((noise_f_re,noise_f_im),dim=2)
+        residual_f = (G * noise_f_aligned - predicted_f) * target_mask
         loss_f = (residual_f ** 2).sum() / (num_eval if num_eval > 0 else 1)
         logging.info(f"loss_f:{loss_f} loss_t:{loss_t} ratio:{loss_f/loss_t}")
         return loss_f + loss_t
