@@ -157,7 +157,7 @@ class CD2_base(nn.Module):
         residual_f = (G * noise_f_aligned - predicted_f) * target_mask
         loss_f = (residual_f ** 2).sum() / (num_eval if num_eval > 0 else 1)
         loss_f = loss_f/math.sqrt(L)
-        logging.info(f"loss_f:{loss_f} loss_t:{loss_t} ratio:{loss_f/loss_t}")
+        # logging.info(f"loss_f:{loss_f} loss_t:{loss_t} ratio:{loss_f/loss_t}")
         return loss_f + loss_t
 
     def set_input_to_diffmodel(self, noisy_data, observed_data, cond_mask):
