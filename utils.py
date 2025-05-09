@@ -42,7 +42,7 @@ def train(
                     },
                     refresh=False,
                 )
-                if batch_no % 25 == 0:
+                if (batch_no + 1) % 25 == 0:
                     epoch_info = f"Epoch:{epoch_no}, batch:{batch_no}, avg_loss:{avg_loss/batch_no}"
                     logging.info(epoch_info)
 
@@ -65,8 +65,8 @@ def train(
                             },
                             refresh=False,
                         )
-                        if batch_no % 25 == 0:
-                            epoch_info = f"Epoch:{epoch_no}, batch:{batch_no}, avg_loss:{avg_loss/batch_no}"
+                        if (batch_no + 1) % 25 == 0:
+                            epoch_info = f"Epoch:{epoch_no}, batch:{batch_no}, avg_loss:{avg_loss_valid/batch_no}"
                             logging.info(epoch_info)
             if best_valid_loss > avg_loss_valid:
                 best_valid_loss = avg_loss_valid

@@ -30,7 +30,7 @@ parser.add_argument(
     "--nfold", type=int, default=0, help="for 5fold test (valid value:[0-4])"
 )
 parser.add_argument("--unconditional", action="store_true")
-parser.add_argument("--modelfolder", type=str, default="physio_fold0_20250507_070827")
+parser.add_argument("--modelfolder", type=str, default="physio_fold0_20250509_123358")
 parser.add_argument("--nsample", type=int, default=100)
 
 args = parser.parse_args()
