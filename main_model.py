@@ -261,23 +261,23 @@ class CD2_base(nn.Module):
                 # to time domain
                 x_t = idft(x_f)
                 model_input = self.set_input_to_diffmodel(x_t, observed_data, cond_mask)
-
+                pred_t, pred_f = self.diffmodel(model_input, side_info, torch.tensor([t]).to(self.device))
                 # coeffs
                 coeff1 = 1/(self.alpha_hat[t]**0.5)
                 coeff2 = (1-self.alpha_hat[t])/((1-self.alpha[t])**0.5)
                 
-                pred_t, pred_f = self.diffmodel(model_input, side_info, torch.tensor([t]).to(self.device)) 
                 x_f = coeff1 * (x_f - coeff2 * pred_f) # (B,K,L), (B,K,L)
                 if t > 0:
                     sigma_f = ((1 - self.alpha[t-1]) / (1 - self.alpha[t]) * self.beta[t]) ** 0.5
                     x_f = x_f + sigma_f * G * torch.randn_like(x_f) # 加 G，保持协方差一致
 
                 x_t = idft(x_f)
-                # model_input_t = self.set_input_to_diffmodel(x_t, observed_data, cond_mask)
+                model_input_t = self.set_input_to_diffmodel(x_t, observed_data, cond_mask)
                 # pred_t, _ = self.diffmodel(model_input_t, side_info, torch.tensor([t]).to(self.device))
-                extra = idft(G * pred_f)
-                pred_t_true = pred_t + extra
-                x_t = coeff1 * (x_t - coeff2 * pred_t_true)
+                # extra = idft(pred_f)
+                pred_t, _ = self.diffmodel(model_input_t, side_info, torch.tensor([t]).to(self.device))
+                # pred_t_true = pred_t + extra
+                x_t = coeff1 * (x_t - coeff2 * pred_t)
                 if t > 0:
                     sigma_t = ((1 - self.alpha[t-1]) / (1 - self.alpha[t]) * self.beta[t]) ** 0.5
                     x_t = x_t + sigma_t * torch.randn_like(x_t)
