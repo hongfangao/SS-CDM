@@ -19,7 +19,7 @@ logging.basicConfig(
 )
 
 import sys 
-sys.argv += "--testmissingratio 0.1 --nsample 100".split()
+sys.argv += "--testmissingratio 0.9 --nsample 1".split()
 
 parser = argparse.ArgumentParser(description="cd2")
 parser.add_argument("--config", type=str, default="base.yaml")
@@ -30,7 +30,7 @@ parser.add_argument(
     "--nfold", type=int, default=0, help="for 5fold test (valid value:[0-4])"
 )
 parser.add_argument("--unconditional", action="store_true")
-parser.add_argument("--modelfolder", type=str, default="physio_fold0_20250509_123358")
+parser.add_argument("--modelfolder", type=str, default="physio_200")
 parser.add_argument("--nsample", type=int, default=100)
 
 args = parser.parse_args()

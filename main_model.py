@@ -272,10 +272,12 @@ class CD2_base(nn.Module):
                     sigma_f = ((1 - self.alpha[t-1]) / (1 - self.alpha[t]) * self.beta[t]) ** 0.5
                     x_f = x_f + sigma_f * G * torch.randn_like(x_f) # 加 G，保持协方差一致
 
-                # x_t = idft(x_f)
+                x_t = idft(x_f)
                 # model_input_t = self.set_input_to_diffmodel(x_t, observed_data, cond_mask)
                 # pred_t, _ = self.diffmodel(model_input_t, side_info, torch.tensor([t]).to(self.device))
-                x_t = coeff1 * (x_t - coeff2 * pred_t)
+                extra = idft(G * pred_f)
+                pred_t_true = pred_t + extra
+                x_t = coeff1 * (x_t - coeff2 * pred_t_true)
                 if t > 0:
                     sigma_t = ((1 - self.alpha[t-1]) / (1 - self.alpha[t]) * self.beta[t]) ** 0.5
                     x_t = x_t + sigma_t * torch.randn_like(x_t)
