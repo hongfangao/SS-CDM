@@ -19,11 +19,11 @@ logging.basicConfig(
 )
 
 import sys 
-sys.argv += "--testmissingratio 0.1 --nsample 100".split()
+sys.argv += "--testmissingratio 0.1 --nsample 1".split()
 
 parser = argparse.ArgumentParser(description="cd2")
 parser.add_argument("--config", type=str, default="base.yaml")
-parser.add_argument('--device', default='cuda:2', help='Device for Attack')
+parser.add_argument('--device', default='cuda:7', help='Device for Attack')
 parser.add_argument("--seed", type=int, default=1)
 parser.add_argument("--testmissingratio", type=float, default=0.1)
 parser.add_argument(
