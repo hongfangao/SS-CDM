@@ -19,10 +19,10 @@ logging.basicConfig(
 )
 
 import sys 
-sys.argv += "--testmissingratio 0.1 --nsample 100".split()
+sys.argv += "--testmissingratio 0.1 --nsample 1".split()
 
 parser = argparse.ArgumentParser(description="cd2")
-parser.add_argument("--config", type=str, default="base400.yaml")
+parser.add_argument("--config", type=str, default="base.yaml")
 parser.add_argument('--device', default='cuda:1', help='Device for Attack')
 parser.add_argument("--seed", type=int, default=1)
 parser.add_argument("--testmissingratio", type=float, default=0.1)
@@ -30,7 +30,7 @@ parser.add_argument(
     "--nfold", type=int, default=0, help="for 5fold test (valid value:[0-4])"
 )
 parser.add_argument("--unconditional", action="store_true")
-parser.add_argument("--modelfolder", type=str, default="")
+parser.add_argument("--modelfolder", type=str, default="physio_fold0_20250513_114851")
 parser.add_argument("--nsample", type=int, default=100)
 
 args = parser.parse_args()
