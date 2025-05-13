@@ -14,12 +14,12 @@ import logging
 current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 logging.basicConfig(
     level=logging.INFO,
-    filename='train_'+current_time+'.log',
+    filename='test_'+current_time+'.log',
     filemode='w',
 )
 
 import sys 
-sys.argv += "--testmissingratio 0.1 --nsample 1".split()
+sys.argv += "--testmissingratio 0.1 --nsample 100".split()
 
 parser = argparse.ArgumentParser(description="cd2")
 parser.add_argument("--config", type=str, default="base.yaml")

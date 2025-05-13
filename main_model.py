@@ -309,8 +309,12 @@ class CD2_base(nn.Module):
                         (1 - self.alpha[t-1]) / (1-self.alpha[t]) 
                     ) * (1 - self.alpha_hat[t])
                     sigma = sigma_factor ** 0.5
-                    z = torch.randn_like(x_t,device=self.device)
-                    z = idft(G*dft(z))
+                    z_t = torch.randn_like(x_t,device=self.device)
+                    z_f = torch.randn_like(x_t,device=self.device)
+                    z = (
+                        (self.alpha[t] * (1-self.alpha[t]))**0.5*z_t
+                        + (1-self.alpha[t])**0.5 * idft(G*z_f)
+                    )
                     x_t = mean + sigma*z
                 else:
                     x_t = mean
