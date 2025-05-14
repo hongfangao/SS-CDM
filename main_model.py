@@ -133,40 +133,44 @@ class CD2_base(nn.Module):
             t = (torch.ones(B) * set_t).long().to(self.device)
         else:
             t = torch.randint(0, self.num_steps, [B]).to(self.device)
-        current_alpha = self.alpha_torch[t].view(B,1,1)  # (B,1,1)
         G = self.set_noise_scaling(L)
-        noise = torch.randn_like(observed_data)
-        noise_f = torch.randn_like(observed_data)
-        
-        noisy_data_t = (current_alpha ** 0.5) * observed_data + (1.0 - current_alpha) ** 0.5 * noise
-        noisy_data_f = (current_alpha ** 0.5) * dft(noisy_data_t) + (1.0 - current_alpha) ** 0.5 * G * noise_f
- 
-        noisy_input = idft(noisy_data_f)
+        alpha_cum = self.alpha_torch.squeeze(-1).squeeze(-1)
+        noisy_x = torch.zeros_like(observed_data)
+        true_noise = torch.zeros_like(observed_data)
 
-        total_input = self.set_input_to_diffmodel(noisy_input, observed_data, cond_mask)
+        for i in range(B):
+            ki = int(t[i].item())
+            x0_i = observed_data[i]
+            A1k = alpha_cum[ki]
+            xi = A1k * x0_i
+            noise_t = torch.zeros_like(xi)
+            noise_f = torch.zeros_like(xi)
+            for j in range(1, ki + 1):
+                if j < ki:
+                    Aj1k = alpha_cum[ki]/alpha_cum[j]
+                else:
+                    Aj1k = 1.0
+                a = self.alpha_hat[j].item()
+                cj = (a*(1.0-a))**0.5 * Aj1k
+                eps_t = torch.randn(K,L,device=self.device)
+                noise_t += cj * eps_t
+                dj = ((1.0-a))**0.5*Aj1k
+                eps_f = torch.randn(K,L,device=self.device)
+                noise_f += dj * (idft((G*eps_f)).squeeze(0))
+            xk_i = xi + noise_t + noise_f
+            eta_k_i = noise_t + noise_f
+            noisy_x[i] = xk_i
+            true_noise[i] = eta_k_i
+
+        total_input = self.set_input_to_diffmodel(noisy_x, observed_data, cond_mask)
 
         predicted_t, predicted_f = self.diffmodel(total_input, side_info, t)  # (B,K,L)
 
-        extra = idft(G* noise_f)
-        true_eps_t = (self.alpha_torch[t]*(1-self.alpha_torch[t])).sqrt() * noise + (1-self.alpha_torch[t]).sqrt() * extra
-        target_mask = observed_mask - cond_mask
-        residual_t = (true_eps_t - predicted_t) * target_mask
+        target_mask = (observed_mask - cond_mask).float()
+        residual_t = (true_noise - predicted_t) * target_mask
         num_eval = target_mask.sum()
         loss_t = (residual_t ** 2).sum() / (num_eval if num_eval > 0 else 1)
-        n_real = math.ceil((L+1)/2)
-        noise_f_re = noise_f[:,:,:n_real]
-        noise_f_im = noise_f[:,:,n_real:]/math.sqrt(2)
-        noise_f_aligned = torch.cat((noise_f_re,noise_f_im),dim=2)
-        target_mask = target_mask.float()
-        mask_f_full = dft(target_mask)
-        mask_re = mask_f_full[:,:,:n_real]
-        mask_im = mask_f_full[:,:,n_real:] *math.sqrt(2)
-        mask_f = torch.cat((mask_re,mask_im),dim=2)
-        residual_f = (G * noise_f_aligned - predicted_f) * mask_f
-        num_eval_f = mask_f.sum()
-        loss_f = (residual_f ** 2).sum() / (num_eval_f if num_eval_f > 0 else 1)
-        loss_f = loss_f/n_real
-        logging.info(f"loss_f:{loss_f} loss_t:{loss_t} ratio:{loss_f/loss_t}")
+        logging.info(f"loss:{loss_t.item()}")
         return loss_t
 
 
