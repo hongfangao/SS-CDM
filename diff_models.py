@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 from linear_attention_transformer import LinearAttentionTransformer
-from fourier import dft
+from fourier import dft, idft
 
 
 def get_torch_trans(heads=8, layers=1, channels=64):

@@ -77,8 +77,9 @@ def train(
                     epoch_no,
                 )
 
-    if foldername != "":
-        torch.save(model.state_dict(), output_path)
+            if foldername != "":
+                save_path = foldername + "/model_" + epoch_no + ".pth"
+                torch.save(model.state_dict(), save_path)
 
 
 def quantile_loss(target, forecast, q: float, eval_points) -> float:

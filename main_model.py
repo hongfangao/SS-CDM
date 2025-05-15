@@ -167,7 +167,7 @@ class CD2_base(nn.Module):
         predicted_t, predicted_f = self.diffmodel(total_input, side_info, t)  # (B,K,L)
 
         target_mask = (observed_mask - cond_mask).float()
-        residual_t = (true_noise - predicted_t) * target_mask
+        residual_t = (true_noise - idft(predicted_f)) * target_mask
         num_eval = target_mask.sum()
         loss_t = (residual_t ** 2).sum() / (num_eval if num_eval > 0 else 1)
         logging.info(f"loss:{loss_t.item()}")
@@ -304,10 +304,11 @@ class CD2_base(nn.Module):
             x_t = idft(G * torch.randn(B, K, L, device=self.device))
             for t in range(self.num_steps-1,-1,-1):
                 model_input = self.set_input_to_diffmodel(x_t, observed_data, cond_mask)
-                pred_t, _ = self.diffmodel(model_input, side_info, torch.tensor([t]).to(self.device))
-                inv_sqrt_alpha = (1.0/self.alpha_hat[t]**0.5)
-                mean = inv_sqrt_alpha * (x_t - pred_t)
-
+                pred_t, pred_f = self.diffmodel(model_input, side_info, torch.tensor([t]).to(self.device))
+                #inv_sqrt_alpha = (1.0/self.alpha_hat[t]**0.5)
+                inv_sqrt_alpha = 1.0/self.alpha_hat[t]
+                mean = inv_sqrt_alpha * (x_t - idft(pred_f))
+            
                 if t>0:
                     sigma_factor = (
                         (1 - self.alpha[t-1]) / (1-self.alpha[t]) 
@@ -319,7 +320,7 @@ class CD2_base(nn.Module):
                         (self.alpha_hat[t] * (1-self.alpha_hat[t]))**0.5*z_t
                         + (1-self.alpha_hat[t])**0.5 * idft(G*z_f)
                     )
-                    x_t = mean + sigma*z
+                    x_t = mean + sigma * z
                 else:
                     x_t = mean
             imputed_samples[:, i] = x_t.detach()
